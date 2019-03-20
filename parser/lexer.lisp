@@ -618,7 +618,7 @@ Used by compiler to generate 'forbidden' identfiers.")
 Returns character or NIL."
   (when (plusp (length python-name))
     (let* ((division-char (checking-reader-conditionals 
-			   #+(or allegro ccl clisp sbcl) #\_
+			   #+(or allegro ccl clisp sbcl clasp) #\_
                            #+(or ecl cmu) nil
 			   #+lispworks #\-
                            #+abcl (error "Looking up Unicode character by name is not supported on ABCL")))

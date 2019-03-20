@@ -100,6 +100,7 @@
               (do-compile))
         (do-compile)))))
 
+#|
 (defun load-python-file-with-hooks (&key filename on-pre-import on-import-success on-import-fail)
   "Loads given FILENAME (either a source or fasl file) with given hooks.
 Hook arguments:
@@ -136,6 +137,48 @@ Callers can intercept the condition MODULE-IMPORT-PRE to further customize loadi
                   (when (setf load-success (load filename))
                     (when on-import-success
                       (funcall on-import-success . #1#))))))
+          (unless load-success
+            (when on-import-fail
+              (funcall on-import-fail module new-module-p))))
+        (when load-success module)))))
+|#
+
+(defun load-python-file-with-hooks (&key filename on-pre-import on-import-success on-import-fail)
+  "Loads given FILENAME (either a source or fasl file) with given hooks.
+Hook arguments:
+ (ON-PRE-IMPORT MODULE NEW-MODULE-P)
+ (ON-IMPORT-SUCCESS MODULE NEW-MODULE-P SOURCE-FUNC SOURCE)
+ (ON-IMPORT-FAIL MODULE NEW-MODULE-P)
+Returns the module loading success, or NIL after failure.
+Callers can intercept the condition MODULE-IMPORT-PRE to further customize loading behaviour."
+  (assert filename)
+  (let (module new-module-p source-func source)
+    (flet ((handle-module-import-pre (c)
+             ;; Being muffled means condition was intended for an earlier handler,
+             ;; corresponding to a nested inner import action.
+             (unless (mip.muffled c)
+               (unless (fasl-matches-compiler-p (mip.compiler-id c))
+                 (when (mip.is-compiled c)
+                   (whereas ((r (find-restart 'delete-fasl-try-again)))
+                            (format t "~&;; Recompiling obsolete Python fasl file.~%")
+                            (invoke-restart r)))
+                 (fasl-mismatch-cerror filename))
+               (setf module (mip.module c)
+                     new-module-p (mip.module-new-p c)
+                     source-func (mip.source-func c)
+                     source (mip.source c)
+                     (mip.muffled c) t)
+               (when on-pre-import
+                 (funcall on-pre-import module new-module-p)))))
+      (let ((load-success))
+        (unwind-protect
+            (handler-bind ((module-import-pre #'handle-module-import-pre))
+              (with-auto-mode-recompile (:filename filename :restart-name delete-fasl-try-again)
+                (let (#+lispworks (system:*binary-file-type* (string-downcase *py-compiled-file-type*)))
+                  ;; LOAD can e.g. return NIL, if loading fails and user invoked a restart to let LOAD return NIL.
+                  (when (setf load-success (load filename))
+                    (when on-import-success
+                      (funcall on-import-success module new-module-p source-func source))))))
           (unless load-success
             (when on-import-fail
               (funcall on-import-fail module new-module-p))))
@@ -914,6 +957,7 @@ an assigment statement. This changes at least the returned 'store' form.")
       (apply-brackets whole)
       (values (nreverse args) (mapcar #'get-binary-comparison-func-name (nreverse cmps))))))
 
+#|
 (defmacro [comparison-expr] (&whole whole cmp left right)
   ;; "Formally, if a, b, c, ..., y, z are expressions and
   ;; op1, op2, ..., opN are comparison operators, then
@@ -937,6 +981,33 @@ an assigment statement. This changes at least the returned 'store' form.")
                  collect `(progn (shiftf ,x ,y ,(pop args))
                                  (setf ,cmp-res (,cmp-func-name ,x ,y))
                                  ,#1#)))))))
+|#
+
+(defmacro [comparison-expr] (&whole whole cmp left right)
+  ;; "Formally, if a, b, c, ..., y, z are expressions and
+  ;; op1, op2, ..., opN are comparison operators, then
+  ;; a op1 b op2 c ... y opN z is equivalent to
+  ;; a op1 b and b op2 c and ... y opN z,
+  ;; except that each expression is evaluated at most once."
+  ;; http://python.org/doc/current/reference/expressions.html
+  (declare (ignore cmp left right))
+  (multiple-value-bind (args cmp-func-names)
+      (apply-comparison-brackets whole)
+    (with-gensyms (x y cmp-res comparison-expr)
+      `(block ,comparison-expr
+         (let* ((,x ,(pop args))
+                (,y ,(pop args))
+                (,cmp-res (,(pop cmp-func-names) ,x ,y)))
+           ,(let ((exit-condition (if (null cmp-func-names) t `(not (py-val->lisp-bool ,cmp-res)))))
+              `(when ,exit-condition
+                 (return-from ,comparison-expr ,cmp-res)))
+           ,@(loop for cmp-func-name = (pop cmp-func-names)
+                while cmp-func-name
+                collect `(progn (shiftf ,x ,y ,(pop args))
+                                (setf ,cmp-res (,cmp-func-name ,x ,y))
+                                ,(let ((exit-condition (if (null cmp-func-names) t `(not (py-val->lisp-bool ,cmp-res)))))
+                                   `(when ,exit-condition
+                                      (return-from ,comparison-expr ,cmp-res))))))))))
 
 (defmacro [continue-stmt] (&environment e)
   (if (get-pydecl :inside-loop-p e)

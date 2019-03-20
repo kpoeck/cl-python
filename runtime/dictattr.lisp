@@ -72,6 +72,7 @@
      #+clisp 'clos::$classname
      #+cmu 'pcl::name
      #+ecl 'clos::name
+     #+clasp 'clos::name
      #+lispworks 'clos::name
      #+sbcl 'sb-pcl::name))
 
@@ -79,7 +80,7 @@
 
   (defconstant +use-standard-instance-access+
     (checking-reader-conditionals
-     #+(or abcl ecl) nil ;; Need to look into ABCL, got NullPointerException in test case
+     #+(or abcl clasp ecl) nil ;; Need to look into ABCL, got NullPointerException in test case
      #+(or allegro ccl clisp cmu lispworks sbcl) t))
 
   (register-feature :clpython-use-standard-instance-access +use-standard-instance-access+)
@@ -87,7 +88,7 @@
   (defconstant +use-standard-instance-access-setf+
       (checking-reader-conditionals
        #+(or allegro ccl clisp lispworks sbcl) t
-       #+(or abcl cmu ecl) nil ;; these lack (SETF STANDARD-INSTANCE-ACCESS)
+       #+(or abcl clasp cmu ecl) nil ;; these lack (SETF STANDARD-INSTANCE-ACCESS)
        ))
 
   (register-feature :clpython-use-standard-instance-access-setf +use-standard-instance-access-setf+))
@@ -288,6 +289,8 @@ is a Python (meta)class."
 ;; really exists in the dictionary, skipping __getattribute__ and
 ;; __getattr__.
 
+#|
+#-clasp
 (progn
   (defun class.attr-no-magic (class attr)
     "Retrieve class.attr skipping magic hooks. Returns VALUE, FOUND-IN-CLS."
@@ -301,6 +304,24 @@ is a Python (meta)class."
     `(locally (declare (optimize (speed 3) (safety 0) (debug 0)))
        (let ((ca (get-ca ,class ,attr)))
          #1#))))
+
+|#
+#+clasp
+(progn
+  (defun class.attr-no-magic (class attr)
+    "Retrieve class.attr skipping magic hooks. Returns VALUE, FOUND-IN-CLS."
+    (let ((ca (get-ca class attr)))
+      (values (or (ca.class-val-dd ca)
+                  (ca.class-val-non-dd ca))
+              (ca.class-val-class ca))))
+
+  (define-compiler-macro class.attr-no-magic (class attr)
+    ;; Optimize the function calling and structure access.
+    `(locally (declare (optimize (speed 3) (safety 0) (debug 0)))
+       (let ((ca (get-ca ,class ,attr)))
+         (values (or (ca.class-val-dd ca)
+                  (ca.class-val-non-dd ca))
+              (ca.class-val-class ca))))))
 
 (defun x.class-attr-no-magic.bind (x attr)
   (declare (optimize (speed 3) (safety 0) (debug 0)))

@@ -321,11 +321,11 @@ if 1 > \\
     (test-error (ps "\\1" t) :condition-type '{SyntaxError})
     ;; unicode
     
-    #-(or abcl ecl)
-    (test-equal (ps (concatenate 'string "u'\\N{" #1="Latin Small Letter Y With Acute" "}'") t)
+    #-(or abcl clasp ecl)
+    (test-equal (ps (concatenate 'string "u'\\N{" "Latin Small Letter Y With Acute" "}'") t)
                 `([literal-expr] :string
-                                 ,(coerce (list (or (clpython.parser::lisp-char-by-python-name #1#)
-                                                    (error "Unicode char ~A not available in this Lisp?" #1#)))
+                                 ,(coerce (list (or (clpython.parser::lisp-char-by-python-name "Latin Small Letter Y With Acute")
+                                                    (error "Unicode char ~A not available in this Lisp?" "Latin Small Letter Y With Acute")))
                                           'string)))
     #-(or abcl ecl lispworks) ;; Lispworks has no names for chars > 255
     (test-equal (ps "u'\\N{latin capital letter l with stroke}'" t)

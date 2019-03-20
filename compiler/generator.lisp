@@ -196,6 +196,7 @@ former requires that this form is executed within RECEIVE-YIELDED-VALUE."
 
 ;;; AST CPS macros
 
+#|
 (def-cps-macro [assert-stmt] (test raise-arg)
   (with-gensyms (assert-k)
     `(progn
@@ -208,6 +209,21 @@ former requires that this form is executed within RECEIVE-YIELDED-VALUE."
                    (assert-stmt-1 .test-val ',test .raise-arg)
                    #1#))))
          #1#))))
+
+|#
+
+(def-cps-macro [assert-stmt] (test raise-arg)
+  (with-gensyms (assert-k)
+    `(progn
+       (let ((,assert-k ,%current-continuation))
+         (when *__debug__*
+           (with-cps-conversion (,test .test-val)
+             (if (py-val->lisp-bool .test-val)
+                 (funcall ,assert-k nil)
+                 (with-cps-conversion (,raise-arg .raise-arg :nil-allowed t)
+                   (assert-stmt-1 .test-val ',test .raise-arg)
+                   (funcall ,assert-k nil)))))
+         (funcall ,assert-k nil)))))
 
 (def-cps-macro [assign-stmt] (value targets &environment e)
   (let ((res '(values)))

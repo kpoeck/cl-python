@@ -58,6 +58,7 @@
   (with-subtest (:name (format nil "CLPython-Compiler-Decl-~S" kind))
     (call-next-method)))
 
+#|
 (defmethod test-comp-decl ((kind (eql :context-type-stack)))
   (declare (ignorable kind))
   (run-code-test "TEST"               (test :module #1=(car (pydecl :context-type-stack))))
@@ -72,6 +73,23 @@ def f():
   class C:
     TEST"                             (test :class    #1#)))
 
+|#
+
+(defmethod test-comp-decl ((kind (eql :context-type-stack)))
+  (declare (ignorable kind))
+  (run-code-test "TEST"               (test :module (car (pydecl :context-type-stack))))
+  (run-code-test "def foo(x,y): TEST" (test :function (car (pydecl :context-type-stack))))
+  (run-code-test "class C(D): TEST"   (test :class (car (pydecl :context-type-stack))))
+  (run-code-test "
+class C:
+  def f():
+    TEST"                             (test :function (car (pydecl :context-type-stack))))
+  (run-code-test "
+def f():
+  class C:
+    TEST"                             (test :class    (car (pydecl :context-type-stack)))))
+
+#|
 (defmethod test-comp-decl ((kind (eql :context-name-stack)))
   (declare (ignorable kind))
   (run-code-test "TEST"            (test-equal ()     #1=(pydecl :context-name-stack)))
@@ -87,7 +105,25 @@ def f():
 def f():
   class C:
     lambda x: TEST"                (test-equal '(:lambda {C} {f}) #1#)))
+|#
 
+(defmethod test-comp-decl ((kind (eql :context-name-stack)))
+  (declare (ignorable kind))
+  (run-code-test "TEST"            (test-equal ()     (pydecl :context-name-stack)))
+  (run-code-test "def f(): TEST"   (test-equal '({f}) (pydecl :context-name-stack)))
+  (run-code-test "class C: TEST"   (test-equal '({C}) (pydecl :context-name-stack)))
+  (run-code-test "
+class C:
+  def f(): TEST"                   (test-equal '({f} {C}) (pydecl :context-name-stack)))
+  (run-code-test "
+def f():
+  lambda x: TEST"                  (test-equal '(:lambda {f}) (pydecl :context-name-stack)))
+  (run-code-test "
+def f():
+  class C:
+    lambda x: TEST"                (test-equal '(:lambda {C} {f}) (pydecl :context-name-stack))))
+
+#|
 (defmethod test-comp-decl ((kind (eql :inside-loop-p)))
   (declare (ignorable kind))
   (run-code-test "TEST"              (test-false #1=(pydecl :inside-loop-p)))
@@ -104,12 +140,31 @@ TEST" (test-false #1#))
   (run-code-test "
 for x in y:
  TEST" (test-true #1#)))
+|#
+
+(defmethod test-comp-decl ((kind (eql :inside-loop-p)))
+  (declare (ignorable kind))
+  (run-code-test "TEST"              (test-false (pydecl :inside-loop-p)))
+  (run-code-test "while foo(): TEST" (test-true  (pydecl :inside-loop-p)))
+  (run-code-test "
+while foo():
+ if x:
+  TEST" (test-true (pydecl :inside-loop-p)))
+  (run-code-test "
+while foo():
+ bar
+TEST" (test-false (pydecl :inside-loop-p)))
+    
+  (run-code-test "
+for x in y:
+ TEST" (test-true (pydecl :inside-loop-p))))
 
 (defmethod test-comp-decl ((kind (eql :mod-futures)))
   (declare (ignorable kind))
   ":MOD-FUTURES"
   :todo)
 
+#|
 (defmethod test-comp-decl ((kind (eql :mod-globals-names)))
   (declare (ignorable kind))
   (run-code-test "TEST" (test-true (typep #1=(pydecl :mod-globals-names) 'vector)))
@@ -183,7 +238,84 @@ def f():
     global x
     x = 3"    (test-true (seq-equal #1# '({f} {x}) :ignore +standard-module-globals+)
                          :fail-info #100#)))
+|#
 
+(defmethod test-comp-decl ((kind (eql :mod-globals-names)))
+  (declare (ignorable kind))
+  (run-code-test "TEST" (test-true (typep (pydecl :mod-globals-names) 'vector)))
+  (run-code-test "TEST" (test-true (seq-equal (pydecl :mod-globals-names) +standard-module-globals+)))
+  (run-code-test "TEST"        (test-false (seq-member '{a} (pydecl :mod-globals-names))))
+  (run-code-test "a; TEST"     (test-true  (seq-member '{a} (pydecl :mod-globals-names))))
+  (run-code-test "a = 3; TEST" (test-true  (seq-member '{a} (pydecl :mod-globals-names))))
+  (run-code-test "TEST; a"     (test-true  (seq-member '{a} (pydecl :mod-globals-names))))
+  (run-code-test "if a: b(); TEST" (test-true (seq-equal (pydecl :mod-globals-names) '({a} {b})
+							 :ignore +standard-module-globals+)))
+  ;; in a function
+  (run-code-test "
+TEST
+def f():
+   g = 3;
+   return g"     (test-true (seq-equal (pydecl :mod-globals-names) '({f}) :ignore +standard-module-globals+)))
+  (run-code-test "
+TEST
+def f():
+   g += 3;
+   return g"     (test-true (seq-equal (pydecl :mod-globals-names) '({f}) :ignore +standard-module-globals+)))
+  (run-code-test "
+TEST
+def f():
+   global g
+   g += 3;
+   return g"     (test-true (seq-equal (pydecl :mod-globals-names) '({f} {g}) :ignore +standard-module-globals+)
+			    :fail-info "Globals inside functions not added to module globals."))
+  ;; in a class
+  (run-code-test "
+TEST
+class C: pass"    (test-true (seq-equal (pydecl :mod-globals-names) '({C}) :ignore +standard-module-globals+)))
+
+  (run-code-test "
+TEST
+class C:
+  x = 3"    (test-true (seq-equal (pydecl :mod-globals-names) '({C}) :ignore +standard-module-globals+)))
+  (run-code-test "
+TEST
+class C:
+  x += 3"    (test-true (seq-equal (pydecl :mod-globals-names) '({C}) :ignore +standard-module-globals+)))
+
+  (run-code-test "
+TEST
+class C:
+  global x
+  x = 3"    (test-true (seq-equal (pydecl :mod-globals-names) '({C} {x}) :ignore +standard-module-globals+)
+                       :fail-info "Handling `global' declaration in classdef not correct yet."))
+
+  ;; nested function/class
+  (run-code-test "
+TEST
+def f():
+  def g():
+    global x
+    x = 3"    (test-true (seq-equal (pydecl :mod-globals-names) '({f} {x}) :ignore +standard-module-globals+)
+                         :fail-info "Nested `global' not detected."))
+  
+  (run-code-test "
+TEST
+class C:
+  def f():
+    global x
+    x = 3"    (test-true (seq-equal (pydecl :mod-globals-names) '({C} {x}) :ignore +standard-module-globals+)
+                         :fail-info "Handling `global' declaration in classdef not correct yet."))
+
+  (run-code-test "
+TEST
+def f():
+  class C:
+    global x
+    x = 3"    (test-true (seq-equal (pydecl :mod-globals-names) '({f} {x}) :ignore +standard-module-globals+)
+                         :fail-info "Handling `global' declaration in classdef not correct yet.")))
+
+
+#|
 (defmethod test-comp-decl ((kind (eql :lexically-visible-vars)))
   (declare (ignorable kind))
   (run-code-test "TEST"        (test-equal () #1=(pydecl :lexically-visible-vars)))
@@ -257,7 +389,83 @@ class C(D):
 		 (test-true (seq-equal '({x} {Q} {z}) #1#)
                             :fail-info "The class C is not lex-vis"))
   )
+|#
 
+(defmethod test-comp-decl ((kind (eql :lexically-visible-vars)))
+  (declare (ignorable kind))
+  (run-code-test "TEST"        (test-equal () (pydecl :lexically-visible-vars)))
+  (run-code-test "a = 3; TEST" (test-equal () (pydecl :lexically-visible-vars)))
+  (run-code-test "TEST; a = 3" (test-equal () (pydecl :lexically-visible-vars)))
+  
+  (run-code-test "def f(): TEST"             (test-true (seq-equal '() (pydecl :lexically-visible-vars))))
+  (run-code-test "def f(x): TEST"            (test-true (seq-equal '({x}) (pydecl :lexically-visible-vars))))
+  (run-code-test "def f(x,y,z=3): TEST"      (test-true (seq-equal '({x} {y} {z}) (pydecl :lexically-visible-vars))))
+  (run-code-test "def f(x,*y,**z): TEST"     (test-true (seq-equal '({x} {y} {z}) (pydecl :lexically-visible-vars))))
+  (run-code-test "def f( (x,y,z), *a): TEST" (test-true (seq-equal '({x} {y} {z} {a}) (pydecl :lexically-visible-vars))))
+  
+  (run-code-test "
+def f( (x,y) ):
+  def g(a,**b):
+    TEST"        (test-true (seq-equal '({x} {y} {a} {b} {g}) (pydecl :lexically-visible-vars))
+                            :fail-info "G is a local variable in F, therefore visible."))
+
+  (run-code-test "
+def f( (x,y) ):
+  def g( x=3,**y):
+    TEST"        (test-true (seq-equal '({x} {y} {g}) (pydecl :lexically-visible-vars))))
+
+  (run-code-test "
+def f( (x,y) ):
+  def g(z):
+    pass
+  TEST"        (test-true (seq-equal '({x} {y} {g}) (pydecl :lexically-visible-vars))
+                          :fail-info "G is a local variable in F."))
+  
+  (run-code-test "
+class C(D):
+  TEST"
+		 (test-equal '() (pydecl :lexically-visible-vars)))
+
+  (run-code-test "
+class C(D):
+  pass
+TEST"
+		 (test-equal '() (pydecl :lexically-visible-vars)
+                             :fail-info "At module level, lex-vis-vars is by definition empty."))
+  (run-code-test "
+def g():
+  class C(D):
+    pass
+  TEST"
+		 (test-equal '({C}) (pydecl :lexically-visible-vars)))
+  (run-code-test "
+def f():
+  class C:
+    def g(self):
+      TEST"
+                 (test-true (seq-equal '({self} {C}) (pydecl :lexically-visible-vars))
+                            :fail-info "C is local var in F."))
+  (run-code-test "
+def f():
+  class C:
+    def g(self):
+      def h():
+        TEST"
+                 (test-true (seq-equal '({C} {self} {h}) (pydecl :lexically-visible-vars))
+                            :fail-info "H local var in G"))
+  (run-code-test "
+aaa = 4
+class C(D):
+  def f(x):
+    class Q():
+      bbb = 23
+      def g(z):
+        TEST"
+		 (test-true (seq-equal '({x} {Q} {z}) (pydecl :lexically-visible-vars))
+                            :fail-info "The class C is not lex-vis"))
+  )
+
+#|
 (defmethod test-comp-decl ((kind (eql :lexically-declared-globals)))
   (declare (ignorable kind))
   (run-code-test "TEST"             (test-equal () #1=(pydecl :lexically-declared-globals)))
@@ -271,7 +479,23 @@ def f():
   global b
   TEST
   b = x"		 (test-true (seq-equal '({b}) #1#))))
+|#
 
+(defmethod test-comp-decl ((kind (eql :lexically-declared-globals)))
+  (declare (ignorable kind))
+  (run-code-test "TEST"             (test-equal () (pydecl :lexically-declared-globals)))
+  (run-code-test "a = 3; TEST"      (test-equal () (pydecl :lexically-declared-globals)))
+  (run-code-test "
+global a,b  ## module-levels vars should not end up in :lex-decl-glob
+TEST" (test-true (seq-equal '() (pydecl :lexically-declared-globals))))
+  (run-code-test "
+global x  ## bogus decl; should not leak into F
+def f():
+  global b
+  TEST
+  b = x"		 (test-true (seq-equal '({b}) (pydecl :lexically-declared-globals)))))
+
+#|
 (defmethod test-comp-decl ((kind (eql :inside-function-p)))
   (declare (ignorable kind))
   (run-code-test "TEST"             (test-false #1=(let ((ctx-stack  (pydecl :context-type-stack)))
@@ -290,3 +514,33 @@ class C:
 class C: 
   def m(x):
     TEST"                           (test-true #1#)))
+|#
+
+(defmethod test-comp-decl ((kind (eql :inside-function-p)))
+  (declare (ignorable kind))
+  (run-code-test "TEST"             (test-false (let ((ctx-stack  (pydecl :context-type-stack)))
+                                                     (format t "[ctx-stack = ~A]" ctx-stack)
+                                                     (member :function ctx-stack))))
+  (run-code-test "a = 3; TEST"      (test-false (let ((ctx-stack  (pydecl :context-type-stack)))
+                                                     (format t "[ctx-stack = ~A]" ctx-stack)
+                                                     (member :function ctx-stack))))
+  (run-code-test "def f(): TEST"    (test-true  (let ((ctx-stack  (pydecl :context-type-stack)))
+                                                     (format t "[ctx-stack = ~A]" ctx-stack)
+                                                     (member :function ctx-stack))))
+  (run-code-test "
+def f():
+  class C:
+    TEST"                           (test-true  (let ((ctx-stack  (pydecl :context-type-stack)))
+                                                     (format t "[ctx-stack = ~A]" ctx-stack)
+                                                     (member :function ctx-stack))))
+  (run-code-test "
+class C: 
+  TEST"                             (test-false (let ((ctx-stack  (pydecl :context-type-stack)))
+                                                     (format t "[ctx-stack = ~A]" ctx-stack)
+                                                     (member :function ctx-stack))))
+  (run-code-test "
+class C: 
+  def m(x):
+    TEST"                           (test-true (let ((ctx-stack  (pydecl :context-type-stack)))
+                                                     (format t "[ctx-stack = ~A]" ctx-stack)
+                                                     (member :function ctx-stack)))))

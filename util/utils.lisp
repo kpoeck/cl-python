@@ -253,7 +253,10 @@ See function ALIST-VS-HT.")
    #+sbcl (sb-ext:exit :code (or code 0))
    #+(or openmcl mcl) (ccl::quit)
    #+abcl (cl-user::quit)
-   #+ecl (si:quit)))
+   #+ecl (si:quit)
+   #+clasp (core:quit)
+   )
+  )
 
 (defun abbreviate-to-one-line (string)
   (loop for i from 0
