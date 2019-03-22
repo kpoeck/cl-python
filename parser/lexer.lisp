@@ -131,6 +131,7 @@ where TOKEN-KIND is a symbol like '[identifier]"
   (:documentation "Returns either the eof-token, or two values: TOKEN-KIND, TOKEN-VALUE"))
 
 ;; Work around CMUCL bug: http://article.gmane.org/gmane.lisp.cmucl.devel/11052
+#-clasp
 #.(let ((form 
 	 '(defun make-lexer-3 (string &rest options &key yacc-version &allow-other-keys)
 	    "Return a lexer for the given string of Python code.
@@ -147,6 +148,27 @@ On EOF returns: eof-token, eof-token."
     `(eval ',form)
     #-cmu
     form)
+
+#+clasp
+(defvar *the-lexer*)
+#+clasp
+(defun call-lexer-forwarder (op yacc-version)
+  (let ((*lex-state* *the-lexer*))
+    #+no (format t "Lexer= ~S~%" *the-lexer*)
+    (call-lexer yacc-version *the-lexer* op)))
+
+#+clasp
+(defun make-lexer-3 (string &rest options &key yacc-version &allow-other-keys)
+  "Return a lexer for the given string of Python code.
+Will return two value each time: TYPE, VALUE.
+On EOF returns: eof-token, eof-token."
+  (check-type string string)
+  (let ((lexer (apply #'make-instance 'lexer :string string options)))
+    #+no (format t "Lexer= ~S~%" lexer)
+    (setq *the-lexer* lexer)
+    (closer-mop:set-funcallable-instance-function lexer #'(lambda(&optional op)
+                                                            (call-lexer-forwarder op yacc-version)))
+    lexer))
 
 (defmethod call-lexer (yacc-version (lexer lexer) (op (eql nil)))
   (declare (ignorable yacc-version op))
@@ -618,8 +640,8 @@ Used by compiler to generate 'forbidden' identfiers.")
 Returns character or NIL."
   (when (plusp (length python-name))
     (let* ((division-char (checking-reader-conditionals 
-			   #+(or allegro ccl clisp sbcl clasp) #\_
-                           #+(or ecl cmu) nil
+			   #+(or allegro ccl clisp sbcl) #\_
+                           #+(or ecl cmu clasp) nil
 			   #+lispworks #\-
                            #+abcl (error "Looking up Unicode character by name is not supported on ABCL")))
            (lisp-char-name (if division-char
