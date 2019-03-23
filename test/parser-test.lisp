@@ -327,7 +327,7 @@ if 1 > \\
                                  ,(coerce (list (or (clpython.parser::lisp-char-by-python-name "Latin Small Letter Y With Acute")
                                                     (error "Unicode char ~A not available in this Lisp?" "Latin Small Letter Y With Acute")))
                                           'string)))
-    #-(or abcl ecl lispworks) ;; Lispworks has no names for chars > 255
+    #-(or abcl clasp ecl lispworks) ;; Lispworks has no names for chars > 255
     (test-equal (ps "u'\\N{latin capital letter l with stroke}'" t)
                 `([literal-expr] :string
                                  ,(coerce (list (or (name-char "latin_capital_letter_l_with_stroke")
@@ -400,6 +400,7 @@ if 1:
 ;;  #-allegro-cl-express
 
 (defun run-pretty-printer-test ()
+  #-clasp
   (with-subtest (:name "CLPython-PrettyPrinter")
     ;; Test  string -> ast -> string  and ast -> string -> ast
     (macrolet ((p (str &rest options)
