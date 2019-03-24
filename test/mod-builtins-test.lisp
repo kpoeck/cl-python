@@ -28,6 +28,7 @@
 g = globals()
 g['x'] = 3
 assert x == 3")
+  #-clasp
   (run-no-error "
 g = globals()
 for s in ('a = 3', 'print a'):

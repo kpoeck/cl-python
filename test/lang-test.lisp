@@ -1116,8 +1116,11 @@ for x in [1,2,3,4,5]:
        yield x
        yielded = 1
 " (4))
+      #-clasp
       ("assert ((yield 1), (yield 2)) == (None, None)" (1 2))
+      #-clasp
       ("assert [(yield 1), (yield 2)] == [(yield 3), (yield 4)], 'Never' % (yield 5)" (1 2 3 4))
+      #-clasp
       ("
 try:
   yield 1
@@ -1140,6 +1143,7 @@ def f(i):
   return i
 assert `(f(1), (yield f(2)), f(3), (yield f(4)))` == `(1, None, 3, None)`
 assert x == [1, 2, 3, 4]" (2 4))
+      #-clasp
       ("
 x = []
 try:
@@ -1154,8 +1158,11 @@ except:
   x.append('except')
   x.append((yield 3))
 assert x == ['finally', None, 'except', None]" (1 2 3))
+      #-clasp
       ("assert (1 and (yield 1)) == None" (1))
+      #-clasp
       ("assert (1 or (yield 1)) == 1" ())
+      #-clasp
       ("yield 1
 try:
   try:
@@ -1182,6 +1189,7 @@ try:
   yield 2
 finally:
   yield 'finally'" (1 2 "finally"))
+      #-clasp
       ("
 try:
   try:
@@ -1305,6 +1313,7 @@ assert ok == 1
 print a
 assert a == (10, 20, 30, 40, 100)
 ")
+  #-clasp
   (run-no-error "
 ok = 0
 def f(x,y,z):
@@ -1327,6 +1336,7 @@ while 1:
   except StopIteration:
     break
 assert ok == 1")
+  #-clasp
   (run-no-error "
 class A: pass
 class B: pass
@@ -1347,6 +1357,7 @@ assert ok == 1
 print theC.__mro__
 assert theC.__mro__ == (theC,A,B,object)
 ")
+  #-clasp
   (run-no-error "
 def f():
   yield ((yield 1) < (yield 2) < (yield 3))
@@ -1354,6 +1365,7 @@ g = f()
 assert g.next() == 1
 assert g.next() == 2
 assert g.next() == False" :fail-info "short-circuit comparison expr")
+   #-clasp
   (run-no-error "
 def f():
   yield 1
@@ -1370,6 +1382,7 @@ def f():
 print list(f())  
 assert list(f()) == [1,2]
 assert ok == 1")
+   #-clasp
   (run-no-error "
 d = {1:3}
 def f():
@@ -1383,6 +1396,7 @@ try:
 except StopIteration:
   pass
 assert d == {}")
+   #-clasp
   (run-no-error "
 def f():
   (yield 2) if (yield 1) else (yield 3)
@@ -1394,21 +1408,25 @@ assert g.send(True) == 2
 g = f()
 assert g.next() == 1
 assert g.send(False) == 3")
+   #-clasp
   (run-no-error "
 def f():
   import math
   yield math.pi
 g = f()
 assert 3 < g.next() < 4")
+   #-clasp
   (run-no-error "
 def f():
   from math import pi
   yield pi
 g = f()
 assert 3 < g.next() < 4")
+   #-clasp
   (run-no-error "
 f = lambda: (yield 2)
 assert list(f()) == [2]")
+   #-clasp
   (run-no-error "
 def f():
   yield lambda x, y=(yield 1): (yield x + y + 100)
@@ -1440,6 +1458,7 @@ try:
 except StopIteration:
   pass
 " :fail-info "Returning a lambda generator from a function")
+   #-clasp
   (run-error "
 class C:
  def f():
@@ -1448,11 +1467,13 @@ class C:
    return 2" {SyntaxError}
    :known-failure (not clpython:*compile-python-ast-before-running*)
    :fail-info "In a generator, returning a value disallowed. Detected by macroexpansion.")
+   #-clasp
   (run-error "
 def f():
    lambda x, y=(yield 2): x+y
    return 2
 list(f())" {SyntaxError} :fail-info "In a generator, returning a value disallowed. Detected by macroexpansion.")
+   #-clasp
   (run-no-error "
 def f(x, limit):
   for i in x:
@@ -1465,6 +1486,7 @@ assert list(g) == [1,2]
 
 h = f([1,2,3,4], 0)
 assert list(h) == []")
+   #-clasp
   (run-no-error "
 def f(x, limit):
   try:
@@ -1482,6 +1504,7 @@ assert list(g) == [1,2]
 h = f([1,2,3,4], 0)
 assert list(h) == []
 " :fail-info "Expicit return in subgenerator")
+   #-clasp
   (run-no-error "
 def f():
   yield range(100)[(yield 1):(yield 2):(yield 3)]
@@ -1490,17 +1513,21 @@ assert g.next() == 1
 assert g.send(0) == 2
 assert g.send(10) == 3
 assert g.send(3) == [0,3,6,9]" :fail-info "Slice-expr")
+   #-clasp
   (run-no-error "
 x = (x for x in 'y')
 assert x == iter(x)" :fail-info "Generator is its own iterator")
+   #-clasp
   (run-no-error "
 def f(): yield 1
 g = f()
 assert g == iter(g)" :fail-info "Generator is its own iterator")
+   #-clasp
   (run-no-error "
 def f(): yield 1
 g = f()
 assert g.__iter__() == g" :fail-info "Generator is its own iterator")
+  #-clasp
   (run-no-error "
 def f(): yield 1
 try:
@@ -1508,14 +1535,17 @@ try:
   assert False
 except TypeError:
   pass" :fail-info "Generator function does not support iterating")
+   #-clasp
   (run-no-error "
 assert list((x+y) for x in range(3) for y in range(2)) == [0, 1, 1, 2, 2, 3]")
+   #-clasp
   (run-error "
 def f():
  yield 1
  class C:
   yield 2
 list(f())" {SyntaxError} :fail-info "Yield outside function")
+   #-clasp
   (run-error "
 def f():
  x = (yield 1)
@@ -1589,6 +1619,7 @@ g = f()
 assert g.next
 assert g.send
 ")
+   #-clasp
   (run-no-error "
 x = 0
 def f():
@@ -1602,6 +1633,7 @@ g = f()
 assert g.next() == 1
 g.close()
 assert x == 1")
+  #-clasp
   (run-no-error "
 def f(x):
   for i in x:
