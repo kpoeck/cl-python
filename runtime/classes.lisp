@@ -4044,7 +4044,7 @@ finished; F will then not be called again."
 		       +the-false+)))
 	  (setf (gethash ',syntax *binary-comparison-funcs-ht*) ',func)))
 
-#+(or abcl ecl)
+#+(or abcl ecl clasp)
 (defvar *py-id-entries* (make-weak-key-hash-table))
 
 #|
