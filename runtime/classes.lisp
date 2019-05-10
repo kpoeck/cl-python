@@ -408,7 +408,8 @@
    #+cmu (pcl::classp x)
    #+lispworks (clos::classp x)
    #+sbcl (sb-pcl::classp x)
-   #-(or allegro cmu lispworks sbcl) (typep x 'class)))
+   #+clasp (clos::classp x)
+   #-(or allegro clasp cmu lispworks sbcl) (typep x 'class)))
   
 (def-py-method py-class-method.__get__ (x inst class)
   (let ((arg (if (classp inst) inst (py-class-of inst))))
@@ -605,8 +606,8 @@
 (defparameter *create-simple-lambdas-for-python-functions*
     (checking-reader-conditionals
      #+(or allegro lispworks) nil
-     #+(or abcl sbcl) t
-     #-(or abcl allegro lispworks sbcl) t)
+     #+(or abcl clasp sbcl) t
+     #-(or abcl allegro clasp lispworks sbcl) t)
      "Whether Python function are real CLOS funcallable instances, or just normal lambdas.
 Note that in the latter case, functions miss their name and attribute dict, but should
 otherwise work well.")
@@ -807,7 +808,6 @@ otherwise work well.")
 
 (declaim (special *the-empty-tuple*))
 
-#|
 (defclass func-code (clpython:object)
   ((name      :type string                :initarg :name      :reader func-code.name      :initform "")
    (arg-count :type (integer 0)           :initarg :arg-count :reader func-code.arg-count :initform 0)
@@ -823,24 +823,7 @@ otherwise work well.")
    (stacksize :type (integer 0)           :initarg :stacksize :reader func-code.stacksize :initform 0)
    (flags     :type (integer 0)           :initarg :flags     :reader func-code.flags     :initform 0))
   (:metaclass clpython:py-type))
-|#
-
-(defclass func-code (clpython:object)
-  ((name      :type string                :initarg :name      :reader func-code.name      :initform "")
-   (arg-count :type (integer 0)           :initarg :arg-count :reader func-code.arg-count :initform 0)
-   (nlocals   :type (integer 0)           :initarg :nlocals   :reader func-code.nlocals   :initform 0)
-   (varnames  :type (or py-tuple list)    :initarg :varnames  :reader func-code.varnames  :initform *the-empty-tuple*)
-   (cellvars  :type (or py-tuple list)    :initarg :cellvars  :reader func-code.cellvars  :initform *the-empty-tuple*)
-   (freevars  :type (or py-tuple list)    :initarg :freevars  :reader func-code.freevars  :initform *the-empty-tuple*)
-   (code      :type string                :initarg :code      :reader func-code.code      :initform "")
-   (consts    :type (or py-tuple list)    :initarg :consts    :reader func-code.consts    :initform *the-empty-tuple*)
-   (names     :type (or py-tuple list)    :initarg :names     :reader func-code.names     :initform *the-empty-tuple*)
-   (filename  :type string                :initarg :filename  :reader func-code.filename  :initform "")
-   (lnotab    :type string                :initarg :lnotab    :reader func-code.lnotab    :initform "")
-   (stacksize :type (integer 0)           :initarg :stacksize :reader func-code.stacksize :initform 0)
-   (flags     :type (integer 0)           :initarg :flags     :reader func-code.flags     :initform 0))
-  (:metaclass clpython:py-type))
-
+  
 (def-py-method py-function.func_code :attribute (x)
   "Read-only attribute: the underlying lambda. (In CPython the bytecode vector.)"
   (etypecase x
@@ -2404,9 +2387,10 @@ But if RELATIVE-TO package name is given, result may contains dots."
      #+abcl t
      #+allegro t
      #+ecl t
+     #+clasp t
      #+lispworks nil
      #+sbcl t
-     #-(or abcl allegro ecl lispworks sbcl) nil)
+     #-(or abcl allegro clasp ecl lispworks sbcl) nil)
      "Whether the iterator created by WITH-HASH-TABLE-ITERATOR has indefinite extent.
 ANSI states for WITH-HASH-TABLE-ITERATOR:  \"It is unspecified what happens if any
 of the implicit interior state of an iteration is returned outside the dynamic extent
@@ -4047,7 +4031,6 @@ finished; F will then not be called again."
 #+(or abcl ecl clasp)
 (defvar *py-id-entries* (make-weak-key-hash-table))
 
-#|
 (defun py-id (x)
   "Return pointer address. This might change during the life time of the object,
 e.g. due to moving by the GC. Python has reference counting, and guarantees a
@@ -4057,23 +4040,8 @@ fixed id during the object's lifetime."
    #+ccl (ccl:%address-of x)
    #+clisp (system::address-of x)
    #+cmu (kernel:get-lisp-obj-address x)
-   #+(or abcl ecl) (or #1=(gethash x *py-id-entries*)
+   #+(or abcl clasp ecl) (or #1=(gethash x *py-id-entries*)
                        (setf #1# (hash-table-count *py-id-entries*)))
-   #+lispworks (system:object-address x)
-   #+sbcl (sb-kernel:get-lisp-obj-address x)))
-
-|#
-(defun py-id (x)
-  "Return pointer address. This might change during the life time of the object,
-e.g. due to moving by the GC. Python has reference counting, and guarantees a
-fixed id during the object's lifetime."
-  (checking-reader-conditionals
-   #+allegro (excl:lispval-to-address x)
-   #+ccl (ccl:%address-of x)
-   #+clisp (system::address-of x)
-   #+cmu (kernel:get-lisp-obj-address x)
-   #+(or abcl clasp ecl) (or (gethash x *py-id-entries*)
-                             (setf (gethash x *py-id-entries*) (hash-table-count *py-id-entries*)))
    #+lispworks (system:object-address x)
    #+sbcl (sb-kernel:get-lisp-obj-address x)))
 
@@ -4360,8 +4328,8 @@ Returns one of (-1, 0, 1): -1 iff x < y; 0 iff x == y; 1 iff x > y")
 (defvar *circle-detection-mechanism*
     (checking-reader-conditionals
      #+allegro :hash-table
-     #+(or cmu sbcl lispworks) :level
-     #-(or allegro cmu lispworks sbcl) :level))
+     #+(or clasp cmu sbcl lispworks) :level
+     #-(or allegro clasp cmu lispworks sbcl) :level))
 
 (defvar *circle-print-abbrev* "...")
 

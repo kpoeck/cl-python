@@ -289,8 +289,6 @@ is a Python (meta)class."
 ;; really exists in the dictionary, skipping __getattribute__ and
 ;; __getattr__.
 
-#|
-#-clasp
 (progn
   (defun class.attr-no-magic (class attr)
     "Retrieve class.attr skipping magic hooks. Returns VALUE, FOUND-IN-CLS."
@@ -304,24 +302,6 @@ is a Python (meta)class."
     `(locally (declare (optimize (speed 3) (safety 0) (debug 0)))
        (let ((ca (get-ca ,class ,attr)))
          #1#))))
-
-|#
-#+clasp
-(progn
-  (defun class.attr-no-magic (class attr)
-    "Retrieve class.attr skipping magic hooks. Returns VALUE, FOUND-IN-CLS."
-    (let ((ca (get-ca class attr)))
-      (values (or (ca.class-val-dd ca)
-                  (ca.class-val-non-dd ca))
-              (ca.class-val-class ca))))
-
-  (define-compiler-macro class.attr-no-magic (class attr)
-    ;; Optimize the function calling and structure access.
-    `(locally (declare (optimize (speed 3) (safety 0) (debug 0)))
-       (let ((ca (get-ca ,class ,attr)))
-         (values (or (ca.class-val-dd ca)
-                  (ca.class-val-non-dd ca))
-              (ca.class-val-class ca))))))
 
 (defun x.class-attr-no-magic.bind (x attr)
   (declare (optimize (speed 3) (safety 0) (debug 0)))

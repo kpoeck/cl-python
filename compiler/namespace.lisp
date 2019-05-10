@@ -311,7 +311,6 @@
 
 (register-feature :clpython-optimize-namespaces *optimize-namespaces*)
 
-#|
 (defmethod ns.read-form ((ns hash-table-ns) (s symbol))
   `(with-py-dict
        (or #+clpython-optimize-namespaces
@@ -320,18 +319,6 @@
              #+clpython-optimize-namespaces
              (when val
                (setf #1# val))
-             val)
-           ,(when (ns.parent ns)
-              (ns.read-form (ns.parent ns) s)))))
-|#
-(defmethod ns.read-form ((ns hash-table-ns) (s symbol))
-  `(with-py-dict
-       (or #+clpython-optimize-namespaces
-           (get ',s ,(ns.dict-form ns))
-           (let ((val (gethash ',s ,(ns.dict-form ns))))
-             #+clpython-optimize-namespaces
-             (when val
-               (setf (get ',s ,(ns.dict-form ns)) val))
              val)
            ,(when (ns.parent ns)
               (ns.read-form (ns.parent ns) s)))))

@@ -201,27 +201,9 @@ Returns the (updated) loaded module, or NIL on load error."
                        ;; It's a hack that there are two places:
                        (remove-loaded-module %module habitat)
                        (remhash %module *all-modules*)))))
-#|
+
 (defun module-import-post #1=(module new-module-p source-func source)
   (declare (ignorable . #1#))
-  #+clpython-source-level-debugging
-  (progn
-    ;; Allegro looks for the .fasl file right next to the source file. When using e.g.
-    ;; asdf-binary-locations this assumption does not hold, and Allegro fails to load
-    ;; the source information. By explicitly loading the info from the fasl now,
-    ;; there's no need for Allegro to look for the fasl file anymore.
-    (excl::load-source-debug-info bin-filename)
-    #+(or) ;; debug
-    (let ((*print-level* 3))
-      (excl::dump-lisp-source source-func :terse t))
-    ;; This REGISTER-... cannot happen during LOAD of the fasl file,
-    ;; as source information only becomes available after the file is loaded.
-    (register-python-module-source :module-function-name source-func
-                                   :source-path (module-src-pathname module)
-                                   :source source)))
-|#
-(defun module-import-post (module new-module-p source-func source)
-  (declare (ignorable module new-module-p source-func source))
   #+clpython-source-level-debugging
   (progn
     ;; Allegro looks for the .fasl file right next to the source file. When using e.g.

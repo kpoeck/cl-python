@@ -59,7 +59,6 @@
 (defmacro test-equal (&rest args)
   `(test ,@args :test 'equal))
 
-#-clasp
 (defconstant +compilation-warnings-muffled-by-compiler+
     #.(progn
         (define-condition c1 (warning) ())
@@ -71,12 +70,6 @@
                 (progn (compile 'foo1) (setf muffled t)))
             (c1 () (setf muffled nil)))
           muffled))
-    "Whether warnings signalled during compilation by a macro-expansion can be
-caught outside the COMPILE form. ANSI 3.2.5 \"Exceptional Situations in the Compiler\"
-seems to give implementations some freedom here. (In practice: Allegro=NIL, LisWorks=T")
-
-#+clasp
-(defconstant +compilation-warnings-muffled-by-compiler+ t
     "Whether warnings signalled during compilation by a macro-expansion can be
 caught outside the COMPILE form. ANSI 3.2.5 \"Exceptional Situations in the Compiler\"
 seems to give implementations some freedom here. (In practice: Allegro=NIL, LisWorks=T")
