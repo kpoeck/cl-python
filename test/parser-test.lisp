@@ -322,7 +322,7 @@ if 1 > \\
     ;; unicode
     
     #-(or abcl clasp ecl)
-    (test-equal (ps (concatenate 'string "u'\\N{" "Latin Small Letter Y With Acute" "}'") t)
+    (test-equal (ps (concatenate 'string "u'\\N{" #1="Latin Small Letter Y With Acute" "}'") t)
                 `([literal-expr] :string
                                  ,(coerce (list (or (clpython.parser::lisp-char-by-python-name #1#)
                                                     (error "Unicode char ~A not available in this Lisp?" #1#)))
@@ -403,21 +403,28 @@ if 1:
   (with-subtest (:name "CLPython-PrettyPrinter")
     ;; Test  string -> ast -> string  and ast -> string -> ast
     (macrolet ((p (str &rest options)
-                 `(progn 
-                    (test ,str (py-pprint (parse ,str))
-                          :test 'string-strip-= ,@options)
-                    (when (string-strip-= ,str (py-pprint (parse ,str)))
-                      (test-equal (values (parse ,str))
-                                  (values (parse (py-pprint (parse ,str))))
-                                  ,@options))))
+                 `(handler-case
+                      (progn 
+                        (test ,str (py-pprint (parse ,str))
+                              :test 'string-strip-= ,@options)
+                        (when (string-strip-= ,str (py-pprint (parse ,str)))
+                          (test-equal (values (parse ,str))
+                                      (values (parse (py-pprint (parse ,str))))
+                                      ,@options)))
+                    (error (e)
+                      (format t "Clasp unexpected Error testing ~a~%" e))))
+               
                (pe (str &rest options)
-                 `(progn 
-                    (test ,str (py-pprint (parse ,str :one-expr t))
-                          :test 'string-strip-= ,@options)
-                    (when (string-strip-= ,str (py-pprint (parse ,str :one-expr t)))
-                      (test-equal (values (parse ,str))
-                                  (values (parse (py-pprint (parse ,str :one-expr t))))
-                                  ,@options)))))
+                 `(handler-case
+                      (progn 
+                        (test ,str (py-pprint (parse ,str :one-expr t))
+                              :test 'string-strip-= ,@options)
+                        (when (string-strip-= ,str (py-pprint (parse ,str :one-expr t)))
+                          (test-equal (values (parse ,str))
+                                      (values (parse (py-pprint (parse ,str :one-expr t))))
+                                      ,@options)))
+                    (error (e)
+                      (format t "Clasp Unexpected Error testing ~a~%" e)))))
       #+(or)(parse "")
       ;; number
       (pe "42")
@@ -509,7 +516,7 @@ if 1:
       (p "del x")
       (p "del x, y")
       (p "del x[0]")
-      (p "del x.a")
+       (p "del x.a")
       ;; dict-expr
       (p "{}")
       (p "{1: 2}")
